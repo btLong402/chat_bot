@@ -113,7 +113,18 @@ class RAGRetriever:
                 client = self._embed_client
                 from google.genai import types  # local import to avoid module import errors earlier
                 cfg = types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
-                res = client.models.embed_content(model=self._embed_model, contents=batch, config=cfg)
+                requests = [
+                    types.EmbedContentRequest(
+                        model=self._embed_model,
+                        content=types.Content(parts=[types.Part.from_text(text)]),
+                        config=cfg,
+                    )
+                    for text in batch
+                ]
+                res = client.models.batch_embed_contents(
+                    model=self._embed_model,
+                    requests=requests,
+                )
                 try:
                     import numpy as np
                 except Exception:

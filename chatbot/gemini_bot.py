@@ -52,19 +52,39 @@ class GeminiBot:
         self.model = None
         self.chat = None
 
-    def ask(self, message, use_rag=True):
+    def ask(self, message, use_rag=True, history_turns=10):
         context = ""
         if use_rag:
             results = self.retriever.retrieve(message)
             if results:
                 context = "\n\n".join(results)
-        
+
+        history_snippets = []
+        if history_turns:
+            conversation = self.memory.get_conversation()
+            if conversation:
+                # Pull the last N entries from the stored conversation.
+                for role, content in conversation[-history_turns:]:
+                    history_snippets.append(f"{role}: {content}")
+        history_block = "\n".join(history_snippets).strip() or "(không có lịch sử phù hợp)"
+        context_block = context.strip() or "(không có tài liệu tham chiếu phù hợp)"
+
         prompt = f"""
-        Đây là nội dung người dùng hỏi: "{message}"
-        Nếu có, hãy dùng thông tin sau để trả lời chính xác:
-        -----------------------
-        {context}
-        -----------------------
+        Bạn là trợ lý AI chuyên nghiệp tên {self.name}. Trả lời bằng tiếng Việt rõ ràng, chính xác và đầy đủ.
+
+        DỮ LIỆU ĐẦU VÀO
+        1. Câu hỏi hiện tại của người dùng:
+           "{message}"
+        2. Lịch sử trò chuyện gần đây (vai trò: nội dung):
+           {history_block}
+        3. Tài liệu/thông tin tham chiếu từ hệ thống:
+           {context_block}
+
+        HƯỚNG DẪN TRẢ LỜI
+        - Ưu tiên sự chính xác; chỉ sử dụng thông tin có trong lịch sử và tài liệu tham chiếu.
+        - Nếu câu trả lời cần suy luận, hãy nêu lập luận ngắn gọn dựa trên dữ liệu.
+        - Nếu thiếu thông tin, hãy nêu rõ phần chưa biết và đưa ra gợi ý tiếp theo.
+        - Giữ cấu trúc mạch lạc với đoạn văn hoặc gạch đầu dòng khi cần.
         """
         # Use google-generativeai to generate a response from the model.
         try:

@@ -15,6 +15,9 @@ class MemoryManager:
         return []
 
     def save_history(self):
+        directory = os.path.dirname(self.file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(self.history[-self.max_turns:], f, ensure_ascii=False, indent=2)
 

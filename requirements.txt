@@ -2,7 +2,12 @@
 # Keep versions broad but recent; adjust pins if your deployment environment requires specific versions.
 streamlit>=1.25.0
 google-genai>=0.1.0
-google-generative-ai>=0.12.0
+# The older wrapper package `google-generative-ai` may not be available for
+# all Python versions on PyPI (causing "No matching distribution" errors).
+# Prefer the newer official client `google-genai` above. If you specifically
+# need the older wrapper, uncomment the line below and ensure your Python
+# version is compatible or install from the project's source if available.
+# google-generative-ai>=0.12.0
 python-dotenv>=1.0.0
 pypdf>=3.14.0
 faiss-cpu>=1.7.4

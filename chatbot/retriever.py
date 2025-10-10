@@ -1,9 +1,9 @@
 import os
-import faiss
 import pickle
-import numpy as np
 import logging
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# heavy/optional imports (faiss, numpy, langchain) are imported lazily inside
+# the methods that need them so importing this module doesn't fail in
+# minimal environments.
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -45,22 +45,12 @@ class RAGRetriever:
         except Exception:
             pass
 
-        # Try older google.generativeai
-        try:
-            import google.generativeai as gga  # type: ignore
-            self._embed_client = gga
-            self._embed_type = "gga"
-            # fallback embedding model name used previously
-            self._embed_model = "embed-text-embedding-3-large"
-            logger.info("Using google.generativeai embedding client")
-            return
-        except Exception:
-            pass
-
-        # No client available
+        # No older-wrapper fallback: only support the official `google-genai` client.
+        # If the new client wasn't found above, mark the embed client as not available
+        # and provide a clear install message for the user.
         self._embed_client = None
         self._embed_type = None
-        logger.warning("No embedding client initialized. Install google-genai or google-generative-ai")
+        logger.warning("No embedding client initialized. Install `google-genai` (pip install google-genai)")
 
     def load_index(self):
         if os.path.exists(self.vector_store_path):
@@ -106,6 +96,11 @@ class RAGRetriever:
         Uses the detected client and batches requests.
         """
         if not texts:
+            # Lazy import numpy only when needed
+            try:
+                import numpy as np
+            except Exception:
+                raise RuntimeError("numpy is required for embeddings; install with: pip install numpy")
             return np.zeros((0, 0), dtype="float32")
 
         if self._embed_type is None or self._embed_client is None:
@@ -119,16 +114,28 @@ class RAGRetriever:
                 from google.genai import types  # local import to avoid module import errors earlier
                 cfg = types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
                 res = client.models.embed_content(model=self._embed_model, contents=batch, config=cfg)
+                try:
+                    import numpy as np
+                except Exception:
+                    raise RuntimeError("numpy is required for embeddings; install with: pip install numpy")
                 for emb in res.embeddings:
                     vectors.append(np.array(emb.values, dtype="float32"))
             elif self._embed_type == "gga":
-                # google.generativeai wrapper
+                # google.generativeai wrapper (no longer recommended)
                 gga = self._embed_client
+                try:
+                    import numpy as np
+                except Exception:
+                    raise RuntimeError("numpy is required for embeddings; install with: pip install numpy")
                 for text in batch:
                     resp = gga.embeddings.create(model=self._embed_model, input=text)
                     vectors.append(np.array(resp.data[0].embedding, dtype="float32"))
             else:
                 raise RuntimeError("Unsupported embed client type")
+        try:
+            import numpy as np
+        except Exception:
+            raise RuntimeError("numpy is required for embeddings; install with: pip install numpy")
         return np.vstack(vectors)
 
     def embed_texts(self, texts):
@@ -145,6 +152,11 @@ class RAGRetriever:
             logger.warning("No text extracted from PDF")
             return
 
+        try:
+            from langchain.text_splitter import RecursiveCharacterTextSplitter
+        except Exception:
+            raise RuntimeError("langchain is required for text splitting; install with: pip install 'langchain'")
+
         splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
         chunks = splitter.split_text(text)
         if not chunks:
@@ -157,11 +169,20 @@ class RAGRetriever:
             raise RuntimeError("Embedding produced no vectors")
 
         # Ensure vectors are C-contiguous float32
+        try:
+            import numpy as np
+        except Exception:
+            raise RuntimeError("numpy is required for embeddings; install with: pip install numpy")
+
         vectors = np.ascontiguousarray(vectors, dtype="float32")
 
         # Create new index if needed or if dimension mismatch
         dim = vectors.shape[1]
         if self.index is None:
+            try:
+                import faiss
+            except Exception:
+                raise RuntimeError("faiss is required for vector indexing; install with: pip install faiss-cpu")
             self.index = faiss.IndexFlatL2(dim)
             logger.info(f"Created new FAISS index dim={dim}")
         else:
@@ -186,10 +207,13 @@ class RAGRetriever:
     def retrieve(self, query, top_k=3):
         if self.index is None or len(self.docs) == 0:
             return []
-
         q_vecs = self.embed_texts(query)
         if q_vecs.size == 0:
             return []
+        try:
+            import numpy as np
+        except Exception:
+            raise RuntimeError("numpy is required for retrieval; install with: pip install numpy")
 
         q_vec = np.ascontiguousarray(q_vecs[0].reshape(1, -1), dtype="float32")
         top_k = min(top_k, len(self.docs))

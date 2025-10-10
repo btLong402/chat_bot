@@ -5,9 +5,8 @@ os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
 os.environ.setdefault("GRPC_TRACE", "")
 
 try:
-    # prefer the newer official client package; do NOT instantiate a Client
-    # at import time (instantiation may fail due to environment TLS/ssl issues).
-    import google.genai as _genai_pkg  # type: ignore
+    # Prefer the public Generative AI SDK. Avoid heavy setup at import time.
+    import google.generativeai as _genai_pkg  # type: ignore
     _HAS_GENAI = True
 except Exception:
     _genai_pkg = None
@@ -36,27 +35,20 @@ class GeminiBot:
         self.memory = MemoryManager(memory_file)
         self.retriever = RAGRetriever()
         if not _HAS_GENAI or _genai_pkg is None:
-            raise RuntimeError("google-genai package not installed. Install with: pip install google-genai")
-        # Instantiate a Client now (at runtime) so import-time failures are avoided.
-        try:
-            # client is provided under google.genai.client.Client
-            genai_client = _genai_pkg.client.Client()
-        except Exception as e:
-            raise RuntimeError(f"Failed to initialize google-genai Client: {e}")
-        # set API key if available
-        api_key = os.getenv("GEMINI_API_KEY")
+            raise RuntimeError("google-generativeai package not installed. Install with: pip install google-generativeai")
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if api_key:
             try:
-                genai_client.api_key = api_key
-            except Exception:
-                # not all client versions expose api_key attribute; ignore
-                pass
-        # Using the google.genai client: create a small adapter for the
-        # project's existing call sites. We store the client and model
-        # name here and call the client's generate/chat endpoints in ask().
-        self._genai_client = genai_client
-        self._genai_model = model
-        # keep placeholders for compatibility with older code
+                _genai_pkg.configure(api_key=api_key)
+            except Exception as exc:
+                raise RuntimeError(f"google-generativeai configure failed: {exc}")
+        else:
+            warnings.warn("GEMINI_API_KEY not set. Set it via environment or .env file.", RuntimeWarning)
+        try:
+            self._genai_model = _genai_pkg.GenerativeModel(model)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize GenerativeModel '{model}': {exc}")
+        # maintain legacy attributes for compatibility with older calling code
         self.model = None
         self.chat = None
 
@@ -74,38 +66,25 @@ class GeminiBot:
         {context}
         -----------------------
         """
-        # Use google-genai to generate a response from the model
-        # Try the high-level embed/chat API first
+        # Use google-generativeai to generate a response from the model.
         try:
-            # some versions expose client.chat.completions.create or client.models.generate
-            # We'll try a generic models.generate if available.
-            client = self._genai_client
-            # The exact call shape can vary; try the standard generate API
-            res = None
-            try:
-                res = client.models.generate(model=self._genai_model, text=prompt)
-            except Exception:
-                # fallback: try chat completions API
-                try:
-                    res = client.chat.completions.create(model=self._genai_model, messages=[{"role": "user", "content": prompt}])
-                except Exception as e:
-                    raise
-
-            # Extract text from probable response shapes
-            if res is None:
-                raise RuntimeError("No response from google-genai client")
-
-            # Try common attribute names
-            if hasattr(res, "text"):
-                answer = res.text.strip()
-            elif hasattr(res, "output") and isinstance(res.output, list) and len(res.output) > 0:
-                # some responses include output list
-                answer = getattr(res.output[0], "content", "").strip() or str(res.output[0]).strip()
+            response = self._genai_model.generate_content(prompt)
+            if hasattr(response, "text") and response.text:
+                answer = response.text.strip()
+            elif hasattr(response, "candidates") and response.candidates:
+                parts = []
+                for candidate in response.candidates:
+                    content = getattr(candidate, "content", None)
+                    if content and getattr(content, "parts", None):
+                        for part in content.parts:
+                            text = getattr(part, "text", None)
+                            if text:
+                                parts.append(text)
+                answer = "\n".join(parts).strip() if parts else str(response).strip()
             else:
-                # fallback to string conversion
-                answer = str(res).strip()
+                answer = str(response).strip()
         except Exception as e:
-            raise RuntimeError(f"Failed to get response from google-genai client: {e}")
+            raise RuntimeError(f"Failed to get response from google-generativeai client: {e}")
         self.memory.add_message("user", message)
         self.memory.add_message("assistant", answer)
         return answer

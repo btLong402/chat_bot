@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from chatbot.gemini_bot import GeminiBot
 
@@ -13,6 +14,8 @@ st.session_state.bot = bot
 uploaded = st.sidebar.file_uploader("📄 Tải lên file PDF tri thức", type=["pdf"])
 if uploaded:
     temp_path = f"data/docs/{uploaded.name}"
+    # Ensure uploads directory exists before saving the file
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
     with open(temp_path, "wb") as f:
         f.write(uploaded.read())
     bot.retriever.add_documents(temp_path)

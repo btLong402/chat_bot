@@ -114,7 +114,7 @@ class RAGRetriever:
                 from google.genai import types  # local import to avoid module import errors earlier
                 cfg = types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
                 contents = [
-                    types.Content(parts=[types.Part.from_text(text)])
+                    types.Content(parts=[types.Part(text=text)])
                     for text in batch
                 ]
                 res = client.models.embed_content(

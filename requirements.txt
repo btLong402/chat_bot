@@ -1,0 +1,15 @@
+# Requirements for Gemini RAG Chatbot
+# Keep versions broad but recent; adjust pins if your deployment environment requires specific versions.
+streamlit>=1.25.0
+google-genai>=0.1.0
+google-generative-ai>=0.12.0
+python-dotenv>=1.0.0
+pypdf>=3.14.0
+faiss-cpu>=1.7.4
+langchain>=0.0.300
+numpy>=1.25.0
+rich>=13.3.0
+
+# Optional / helpful tools
+# tqdm (progress bars), install if you want progress feedback during indexing
+# tqdm>=4.65.0

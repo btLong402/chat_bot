@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 from chatbot.gemini_bot import GeminiBot
 
@@ -35,29 +36,12 @@ st.markdown(
         padding: 8px 12px;
         background-color: #fafaff;
     }
-    .copy-wrapper {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: 4px;
-    }
-    .copy-btn {
-        background-color: #eef0ff;
-        border: 1px solid #d4d8ff;
-        border-radius: 6px;
-        padding: 4px 10px;
-        cursor: pointer;
-        font-size: 0.85rem;
-        transition: background-color 0.2s ease;
-    }
-    .copy-btn:hover {
-        background-color: #dfe3ff;
-    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("📚 Gemini RAG Chatbot")
+st.title("📚 La Bàn AI")
 st.markdown("Chatbot này có thể nhớ context **và** tìm thông tin trong tài liệu PDF bạn tải lên.")
 
 history_dir = "data/history"
@@ -72,32 +56,34 @@ def list_uploaded_pdfs(directory: Path) -> List[str]:
 
 
 def render_copy_button(content: str) -> None:
-    unique_id = f"copy-btn-{hashlib.md5(content.encode('utf-8')).hexdigest()}"
-    js_var = unique_id.replace("-", "_")
+    counter = st.session_state.setdefault("_copy_btn_counter", 0)
+    st.session_state["_copy_btn_counter"] += 1
+    unique_id = f"copy-btn-{counter}-{hashlib.md5(content.encode('utf-8')).hexdigest()}"
     safe_content = json.dumps(content)
-    st.markdown(
+    components_html(
         f"""
-        <div class='copy-wrapper'>
-            <button class='copy-btn' id='{unique_id}'>📋 Copy</button>
+        <div style='display:flex;justify-content:flex-end;margin-top:4px;'>
+            <button
+                style='background-color:#eef0ff;border:1px solid #d4d8ff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.85rem;transition:background-color 0.2s ease;'
+                onmouseover="this.style.backgroundColor='#dfe3ff'"
+                onmouseout="this.style.backgroundColor='#eef0ff'"
+                onclick="(async (btn)=>{{
+                    try {{
+                        await navigator.clipboard.writeText({safe_content});
+                        const original = btn.innerText;
+                        btn.innerText = '✅ Đã copy';
+                        setTimeout(()=>btn.innerText = original, 2000);
+                    }} catch (err) {{
+                        const original = btn.innerText;
+                        btn.innerText = '❌ Lỗi';
+                        setTimeout(()=>btn.innerText = original, 2000);
+                    }}
+                }})(this)"
+            >📋 Copy</button>
         </div>
-        <script>
-        const btn_{js_var} = document.getElementById("{unique_id}");
-        if (btn_{js_var}) {{
-            btn_{js_var}.addEventListener("click", async () => {{
-                const text = {safe_content};
-                try {{
-                    await navigator.clipboard.writeText(text);
-                    btn_{js_var}.innerText = "✅ Đã copy";
-                    setTimeout(() => btn_{js_var}.innerText = "📋 Copy", 2000);
-                }} catch (err) {{
-                    btn_{js_var}.innerText = "❌ Lỗi";
-                    setTimeout(() => btn_{js_var}.innerText = "📋 Copy", 2000);
-                }}
-            }});
-        }}
-        </script>
         """,
-        unsafe_allow_html=True,
+        height=48,
+        key=unique_id,
     )
 
 

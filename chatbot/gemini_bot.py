@@ -30,7 +30,7 @@ if not _HAS_GENAI:
     warnings.warn("google-genai package not installed. Install with: pip install google-genai", RuntimeWarning)
 
 class GeminiBot:
-    def __init__(self, name="GeminiBot", model="gemini-2.5-flash-lite", memory_file="chat_history.json"):
+    def __init__(self, name="La Bàn AI", model="gemini-2.5-flash-lite", memory_file="chat_history.json"):
         self.name = name
         self.memory = MemoryManager(memory_file)
         self.retriever = RAGRetriever()

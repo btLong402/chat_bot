@@ -64,6 +64,7 @@ def render_copy_button(content: str) -> None:
         f"""
         <div style='display:flex;justify-content:flex-end;margin-top:4px;'>
             <button
+                id='{unique_id}'
                 style='background-color:#eef0ff;border:1px solid #d4d8ff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.85rem;transition:background-color 0.2s ease;'
                 onmouseover="this.style.backgroundColor='#dfe3ff'"
                 onmouseout="this.style.backgroundColor='#eef0ff'"
@@ -83,7 +84,6 @@ def render_copy_button(content: str) -> None:
         </div>
         """,
         height=48,
-        key=unique_id,
     )
 
 

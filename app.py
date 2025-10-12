@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from pathlib import Path
 from typing import List
@@ -33,6 +35,23 @@ st.markdown(
         padding: 8px 12px;
         background-color: #fafaff;
     }
+    .copy-wrapper {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 4px;
+    }
+    .copy-btn {
+        background-color: #eef0ff;
+        border: 1px solid #d4d8ff;
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background-color 0.2s ease;
+    }
+    .copy-btn:hover {
+        background-color: #dfe3ff;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -50,6 +69,36 @@ def list_uploaded_pdfs(directory: Path) -> List[str]:
     if not directory.exists():
         return []
     return sorted([file.name for file in directory.glob("*.pdf")])
+
+
+def render_copy_button(content: str) -> None:
+    unique_id = f"copy-btn-{hashlib.md5(content.encode('utf-8')).hexdigest()}"
+    js_var = unique_id.replace("-", "_")
+    safe_content = json.dumps(content)
+    st.markdown(
+        f"""
+        <div class='copy-wrapper'>
+            <button class='copy-btn' id='{unique_id}'>📋 Copy</button>
+        </div>
+        <script>
+        const btn_{js_var} = document.getElementById("{unique_id}");
+        if (btn_{js_var}) {{
+            btn_{js_var}.addEventListener("click", async () => {{
+                const text = {safe_content};
+                try {{
+                    await navigator.clipboard.writeText(text);
+                    btn_{js_var}.innerText = "✅ Đã copy";
+                    setTimeout(() => btn_{js_var}.innerText = "📋 Copy", 2000);
+                }} catch (err) {{
+                    btn_{js_var}.innerText = "❌ Lỗi";
+                    setTimeout(() => btn_{js_var}.innerText = "📋 Copy", 2000);
+                }}
+            }});
+        }}
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 with st.sidebar:
@@ -77,12 +126,12 @@ with st.sidebar:
             """
         )
 
-    uploaded = st.file_uploader("📄 Tải lên file PDF tri thức", type=["pdf"])
+    uploaded_files = st.file_uploader("📄 Tải lên file PDF tri thức", type=["pdf"], accept_multiple_files=True)
 
     existing_docs = list_uploaded_pdfs(docs_dir)
     if existing_docs:
-        st.markdown("**📂 Bộ tài liệu hiện có**")
-        st.markdown("<div class='uploaded-list'>" + "<br>".join(existing_docs) + "</div>", unsafe_allow_html=True)
+        with st.expander("📂 Bộ tài liệu hiện có", expanded=False):
+            st.markdown("<div class='uploaded-list'>" + "<br>".join(existing_docs) + "</div>", unsafe_allow_html=True)
     else:
         st.caption("Chưa có tài liệu nào được tải lên.")
 
@@ -99,14 +148,18 @@ if "bot" not in st.session_state or st.session_state.get("bot_memory_file") != m
 
 bot = st.session_state.bot
 
-if uploaded:
-    temp_path = docs_dir / uploaded.name
-    os.makedirs(temp_path.parent, exist_ok=True)
+if uploaded_files:
+    processed_files = []
+    os.makedirs(docs_dir, exist_ok=True)
     with st.spinner("Đang xử lý tài liệu..."):
-        with open(temp_path, "wb") as f:
-            f.write(uploaded.read())
-        bot.retriever.add_documents(str(temp_path))
-    st.sidebar.success(f"✅ Đã nạp file: {uploaded.name}")
+        for uploaded in uploaded_files:
+            temp_path = docs_dir / uploaded.name
+            with open(temp_path, "wb") as f:
+                f.write(uploaded.read())
+            bot.retriever.add_documents(str(temp_path))
+            processed_files.append(uploaded.name)
+    if processed_files:
+        st.sidebar.success("✅ Đã nạp file: " + ", ".join(processed_files))
 
 
 total_turns = len(bot.memory.history)
@@ -134,10 +187,15 @@ with chat_container:
             if timestamp:
                 st.caption(timestamp)
             st.markdown(msg["content"])
+            if msg["role"] == "assistant":
+                render_copy_button(msg["content"])
 
 
 user_input = st.chat_input("Hỏi Gemini về tài liệu hoặc bất cứ điều gì...")
 if user_input:
-    st.chat_message("user").markdown(user_input)
+    with st.chat_message("user"):
+        st.markdown(user_input)
     reply = bot.ask(user_input, use_rag=True)
-    st.chat_message("assistant").markdown(reply)
+    with st.chat_message("assistant"):
+        st.markdown(reply)
+        render_copy_button(reply)

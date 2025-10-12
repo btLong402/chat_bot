@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 from chatbot.gemini_bot import GeminiBot
 
@@ -35,23 +36,6 @@ st.markdown(
         padding: 8px 12px;
         background-color: #fafaff;
     }
-    .copy-wrapper {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: 4px;
-    }
-    .copy-btn {
-        background-color: #eef0ff;
-        border: 1px solid #d4d8ff;
-        border-radius: 6px;
-        padding: 4px 10px;
-        cursor: pointer;
-        font-size: 0.85rem;
-        transition: background-color 0.2s ease;
-    }
-    .copy-btn:hover {
-        background-color: #dfe3ff;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -76,8 +60,27 @@ def render_copy_button(content: str) -> None:
     st.session_state["_copy_btn_counter"] += 1
     unique_id = f"copy-btn-{counter}-{hashlib.md5(content.encode('utf-8')).hexdigest()}"
     safe_content = json.dumps(content)
-    st.markdown(
+    components_html(
         f"""
+        <style>
+        .copy-wrapper {{
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }}
+        .copy-btn {{
+            background-color: #eef0ff;
+            border: 1px solid #d4d8ff;
+            border-radius: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background-color 0.2s ease;
+        }}
+        .copy-btn:hover {{
+            background-color: #dfe3ff;
+        }}
+        </style>
         <div class='copy-wrapper'>
             <button class='copy-btn' id='{unique_id}'>📋 Copy</button>
         </div>
@@ -88,7 +91,7 @@ def render_copy_button(content: str) -> None:
             const text = {safe_content};
             btn.addEventListener('click', async () => {{
                 const original = btn.innerText;
-                async function writeClipboard(value) {{
+                const writeClipboard = async (value) => {{
                     if (navigator.clipboard && window.isSecureContext) {{
                         await navigator.clipboard.writeText(value);
                         return;
@@ -102,7 +105,7 @@ def render_copy_button(content: str) -> None:
                     textarea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
-                }}
+                }};
                 try {{
                     await writeClipboard(text);
                     btn.innerText = '✅ Đã copy';
@@ -115,7 +118,7 @@ def render_copy_button(content: str) -> None:
         }})();
         </script>
         """,
-        unsafe_allow_html=True,
+        height=70,
     )
 
 
@@ -209,7 +212,7 @@ with chat_container:
                 render_copy_button(msg["content"])
 
 
-user_input = st.chat_input("Hỏi Gemini về tài liệu hoặc bất cứ điều gì...")
+user_input = st.chat_input("Hỏi La Bàn về tài liệu hoặc bất cứ điều gì...")
 if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
